@@ -59,7 +59,7 @@ def is_used_dest(dirname, depot):
     :param dirname: folder to check if associated with existing AccuRev workspace
     :param depot: AccuRev depot
     """
-    wkspfile = tempfile.gettempdir() + '/accWksp.xml'
+    wkspfile = tempfile.gettempdir() + '/accurevWksp.xml'
     with open(wkspfile, 'w') as f:
         f.write(exec_cmd(['accurev', 'show', '-fx', 'wspaces']))
     tree = ElemTree.parse(wkspfile)
@@ -78,9 +78,9 @@ def is_used_dest(dirname, depot):
 
 
 def is_valid_dest(dirname):
-    """Checks if path is a valid destination (folder and git repo)
+    """Checks if path is a valid destination (folder and tfs workspace)
 
-    :param dirname: folder to check if directory and git repo
+    :param dirname: folder to check if directory and tfs workspace
     :return: return the folder path
     :raise argparse.ArgumentTypeError: raise error if not an actual folder
     """
@@ -97,7 +97,7 @@ def get_history(branch):
     :return: location of history xml file
     """
     print 'Reading AccuRev history...'
-    logfile = tempfile.gettempdir() + '/accHist.xml'
+    logfile = tempfile.gettempdir() + '/accurevHist.xml'
     with open(logfile, 'w') as f:
         f.write(exec_cmd(['accurev', 'hist', '-a', '-s', branch, '-fx']))
     return logfile
@@ -106,12 +106,12 @@ def get_history(branch):
 def get_args():
     """Get CLI arguments and options
 
-    :return: AccuRev branch, git repository location, append option boolean
+    :return: AccuRev branch, tfs workspace location, append option boolean
     """
-    parser = argparse.ArgumentParser(description='Migrate AccuRev branch history to git')
+    parser = argparse.ArgumentParser(description='Migrate AccuRev branch history to tfs')
     parser.add_argument('accurevDepot', help='The AccuRev depot whose stream will be migrated')
     parser.add_argument('accurevBranch', help='The AccuRev branch which will be migrated', type=is_stream)
-    parser.add_argument('repoLocation', help='The location of the git repository in which the clone will happen',
+    parser.add_argument('repoLocation', help='The location of the tfs workspace in which the clone will happen',
                         action=FullPaths, type=is_valid_dest)
     args = parser.parse_args()
     sourceDepot = args.accurevDepot
@@ -182,7 +182,7 @@ def accurev_login(username, password):
 
 def accurev_init(depot, stream, destination):
     """
-    Create stream and workspace for migration to Git
+    Create stream and workspace for migration to tfs
     :param depot: AccuRev depot name
     :param stream: AccuRev stream to migrate sources from
     :param destination: folder to migrate sources to
@@ -209,25 +209,6 @@ def accurev_init(depot, stream, destination):
     # ignore workspace already exists error
     elif 'ERROR:' in output and ('Existing workspace/ref tree' or 'already exists') not in output:
         sys.exit(output)
-
-
-def git_init(destination):
-    """
-    Init git repository
-    :param destination: git repository folder
-    """
-    os.chdir(destination)
-    # create empty git repo
-    exec_cmd(['git', 'init'])
-
-    # config user and email that will appear in Git history as the committer
-    exec_cmd(['git', 'config', 'user.name', 'Git migration script'])
-    exec_cmd(['git', 'config', 'user.email', 'migration@git.accurev'])
-
-    # create .gitignore file to exclude .accure vfufolder from git repo
-    with open('.gitignore', 'w+') as f:
-        f.write('.accurev')
-
 
 def accurev_pop(depot, transaction_id):
     """
@@ -258,15 +239,15 @@ def accurev_pop(depot, transaction_id):
             sys.exit(output)
 
 def tfs_commit(message, transaction_id, author, timestamp):
-    """Add changes to index and commit them in Git
+    """Add changes to index and commit them in tfs
 
-    :param message: git commit message
+    :param message: tfs commit message
     :param transaction_id: AccuRev transaction ID
     :param author: AccuRev transaction author
     :param timestamp: timestamp at which the original AccuRev transaction was performed
     """
 
-    # add all changes (modified, new, deleted) to Git index
+    # add all changes (modified, new, deleted) to tfs
     print '[TFS] add changes to index...'
     output = exec_cmd(['tf', 'vc', 'add', '*.*', '/recursive', '/noignore'], fail= False)
     if 'ERROR:' in output:
@@ -291,28 +272,8 @@ def tfs_commit(message, transaction_id, author, timestamp):
     # remove temporary file
     os.remove(f.name)
 
-def get_last_transaction_id():
-    """Return the AccuRev transaction number associated to the latest git commit
-
-    :return: last AccuRev transaction ID stored in the git repository
-    """
-    print 'Searching last migrated AccuRev transaction in Git commit logs...'
-    log = exec_cmd(['git', 'log', '-1'])
-    match = re.search(r'\[AccuRev transaction: (\d+)\]', log)
-    count = 1
-    while not match:
-        log = exec_cmd(['git', 'log', 'HEAD~{}'.format(count), '-1'])
-        match = re.search(r'\[AccuRev transaction: (\d+)\]', log)
-        count += 1
-        if count > 100:
-            raise StandardError('ERROR: Unable to find AccuRev transaction in recent Git commit history')
-
-    print 'Last migrated AccuRev transaction found: {}'.format(match.group(1))
-    return match.group(1)
-
-
 def pop_and_add(depot, transaction):
-    """Get sources from AccuRev and commit them in git
+    """Get sources from AccuRev and commit them in tfs
 
     :param depot: AccuRev depot name
     :param transaction: AccuRev transaction used to retrieve the sources
@@ -328,7 +289,7 @@ def pop_and_add(depot, transaction):
     # get sources corresponding to a transaction id
     accurev_pop(depot, tr_id)
 
-    # commit changes to Git
+    # commit changes to tfs
     tfs_commit(commit_msg, tr_id, author, timestamp)
 
 
@@ -339,7 +300,7 @@ def get_depot(stream):
     return: AccuRev depot associated with the stream
     """
     tomatch = str(stream).split('_')[0]
-    depotfile = tempfile.gettempdir() + '/depotList.xml'
+    depotfile = tempfile.gettempdir() + '/accurevdepotList.xml'
     with open(depotfile, 'w') as f:
         f.write(exec_cmd(['accurev', 'show', '-fx', 'depots']))
     tree = ElemTree.parse(depotfile)
@@ -356,11 +317,11 @@ def get_depot(stream):
 
 def tfs_migrate(logfile, stream, destination, depot):
     """
-    Populate files from AccuRev based on history and commit them in git
+    Populate files from AccuRev based on history and commit them in tfs
     :param logfile: XML file containing the history of an AccuRev stream
     :param stream: AccuRev stream to be migrated
-    :param destination: location of the git repository
-    :param append: add only changes not already in git repository if prior migration was performed
+    :param destination: location of the tfs repository
+    :param append: add only changes not already in tfs repository if prior migration was performed
     :param depot: AccuRev depot name
     """
     tree = ElemTree.parse(logfile)
@@ -375,7 +336,11 @@ def tfs_migrate(logfile, stream, destination, depot):
 
     # prepare for migration
     os.chdir(destination)
-    #os.mkdir(stream)
+    try :
+        os.mkdir(stream)
+    except:
+        # ignore for now if the folder is already there
+        pass
     destination = os.path.join(destination, stream)
     
     print destination

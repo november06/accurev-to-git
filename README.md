@@ -1,4 +1,4 @@
-# accurev-git-migrate
+# accurev-tfs-migrate
 
 **A Python 2.7 script which automatically migrates stream history from AccuRev into a TFS branch, given the destination is already under a tfs workspace.**
 
