@@ -19,3 +19,5 @@ The arguments the script uses are as follows, also displayed by running `python 
 | accurevBranch              |            name of AccuRev branch to be transitioned            |
 | accurevStream              |            name of AccuRev stream to be transitioned            |
 | repoLocation               |            path to folder in which to transition                |
+
+Forked from fuzzmz/accurev-to-git (Thanks!) 
